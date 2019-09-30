@@ -1,0 +1,233 @@
+<html>
+    <head>
+    <!--
+        ‘’“”
+        «»
+    -->
+    <script type="text/javascript">
+        formatCode = function ()
+        {
+            var sInputExpression = document.getElementById('inputExpression').value;
+            
+            
+            var sOutputExpression = sInputExpression;
+            sOutputExpression = replaceQuotesWithDirectionalQuotes(sOutputExpression);
+            
+            sOutputExpression = splitLines(sOutputExpression);
+            sOutputExpression = combineLines(sOutputExpression);
+            
+            sOutputExpression = indentLines(sOutputExpression);
+            sOutputExpression = combineFunctions(sOutputExpression);
+            
+            
+            sOutputExpression = combineFieldLists(sOutputExpression);
+            sOutputExpression = combineSetAnalysisLists(sOutputExpression);
+            
+            
+            sOutputExpression = replaceQuotesToOriginal(sOutputExpression);
+                        
+            document.getElementById('outputExpression').value = sOutputExpression;            
+        }
+        replaceQuotesWithDirectionalQuotes = function (sInput)
+        {
+            sInput = sInput.replace(/\'([^\']*)\'/gm, "‘$1’");
+            sInput = sInput.replace(/\"([^\"]*)\"/gm, "“$1”");
+            sInput = sInput.replace(/\/\/(.*)/gm, "«$1»");
+            
+            return sInput;
+        }
+        replaceQuotesToOriginal = function (sInput)
+        {
+            sInput = sInput.replace(/\‘/g, "'");
+            sInput = sInput.replace(/\’/g, "'");
+            sInput = sInput.replace(/\“/g, "\"");
+            sInput = sInput.replace(/\”/g, "\"");   
+            sInput = sInput.replace(/\«/g, "\/\/");       
+            sInput = sInput.replace(/\»/g, "");     
+            return sInput;
+        }
+        splitLines = function (sInput)
+        {   
+            //split all rows
+            sInput = sInput.replace(/(\(|\)|\{|\}|\<|\>|\=|\+|\-|\/|\*|\$|\,|\band\b|\bor\b)(?!(([^\[]*\])|([^\‘]*\’)|([^\“]*\”)|([^\«]*\»)))/igm, "\n$1\n");
+            
+            //trim and delete blank rows
+            sInput = sInput.replace(/\A\s+/gm, "");
+            sInput = sInput.replace(/^\s+/gm, "");
+            sInput = sInput.replace(/\s+\Z/gm, "");
+            sInput = sInput.replace(/\s+$/gm, "");
+            
+            sInput = sInput.trim();
+            return sInput;
+        }
+        combineFieldLists = function (sInput)
+        {   
+        
+            sInput = sInput.replace(/\]\,\s*\[/gm, "], [");
+            //combine single row <>
+            sInput = sInput.replace(/(\<)\n\s*([^\n]*)\n\s*(\>)/gm, "$1$2$3");
+            return sInput;
+        }
+        combineSetAnalysisLists = function (sInput)
+        {   
+        
+            sInput = sInput.replace(/(\’|\”)\,\s*(\‘|\“)/gm, "$1, $2");
+            //combine single row <>
+            sInput = sInput.replace(/(\{)\n\s*([^\n]*)\n\s*(\})/gm, "$1$2$3");
+            return sInput;
+        }
+        combineLines = function (sInput)
+        {   
+            //combine all rows 
+            
+            //combine dollar expansion:
+            sInput = sInput.replace(/\$\n\(\n(.*)\n\)/gm, "\$($1)");
+            
+            //combine brackets around dollar expansion:
+            sInput = sInput.replace(/\(\n\$\((.*)\)\n\)/gm, "(\$($1))");
+            
+            var bDoubleBracketDollarExpansion = document.getElementById('bDoubleBracketDollarExpansion').checked;
+            if (bDoubleBracketDollarExpansion)
+            {
+                //add brackets around dollar expansion:
+                sInput = sInput.replace(/\(*(\$\((?:[^\)]*)\))\)*/gm, "($1)");
+            }
+            //combine set analysis            
+            sInput = sInput.replace(/(\{\n\<)/gm, "{<");
+            sInput = sInput.replace(/(\{\n1\n\<)/gm, "{1<");
+            sInput = sInput.replace(/(\{\n\$\n\<)/gm, "{$<");
+            sInput = sInput.replace(/(\>\n\})/gm, ">}");
+            
+            //combine operators:
+            sInput = sInput.replace(/(\<\n\>)/gm, "<>");
+            sInput = sInput.replace(/(\<\n\=)/gm, "<=");
+            sInput = sInput.replace(/(\>\n\=)/gm, ">=");
+            sInput = sInput.replace(/(\+\n\=)/gm, "+=");
+            sInput = sInput.replace(/(\-\n\=)/gm, "-=");
+            sInput = sInput.replace(/(\*\n\=)/gm, "*=");
+            
+            //combine ()
+            sInput = sInput.replace(/(\(\n\))/gm, "()");
+            
+            //bracket field names (not functions)
+            sInput = sInput.replace(/\n([A-Za-z]{1}\w*)$/gm, function(m, m1, p) {
+                    if(bIsFunctionName(m1)) {return "\n"+m1.toUpperCase()+"";} else {return "\n["+m1+"]";}}
+            );
+            
+            //combine commas to prior rows
+            sInput = sInput.replace(/([^\»])(\n\,)/gm, "$1,");
+            
+            //combine single row open/close
+            sInput = sInput.replace(/(\(|\{|\{\<|\{1\<|\{\$\<)\n(.*)\n(\)|\}|\>\})/gm, "$1$2$3");
+            
+            //combine single row =
+            sInput = sInput.replace(/(.*)\n(\=)\n(?!(?:\>)(.*))/gm, "$1 $2 $3");
+            sInput = sInput.replace(/(.*)\n(\=)(?=\n\>)/gm, "$1 $2");
+            sInput = sInput.replace(/(.*)\n(\=\,)/gm, "$1 $2");
+            
+            //combine single row open/close again after collapsing =
+            sInput = sInput.replace(/(\(|\{|\{\<|\{1\<|\{\$\<)\n(.*)\n(\)|\}|\>\})/gm, "$1$2$3");
+            
+            //combine single row <>
+            sInput = sInput.replace(/(\<)\n(.*)\n(\>)/gm, "$1$2$3");
+            
+            
+            //sInput = sInput.replace(/(\<|\>|\=|\*|\/|\-|\+)(\n(.*)\n\)/gm, "$1");
+            
+            
+            //sInput = sInput.replace(/(.*)\n(\<|\>|\<\=|\>\=|\<\>)\n(.*)/gm, "$1 $2 $3");
+            
+            
+            
+            return sInput;
+        }
+        combineFunctions = function (sInput)
+        {   
+            //combine all rows 
+            //combine functions with (
+            var aFunctions=QVFunctions();
+            var FunctionRegExp = new RegExp("(\\s*)(" + aFunctions.join("|") + ")\\s*(\\(|\\<)","igm");
+            
+            sInput = sInput.replace(FunctionRegExp, function(m, m1, m2, m3, p) {return m1 + m2.toUpperCase()+m3;});
+            
+            
+            return sInput;
+        }
+        indentLines = function (sInput)
+        {           
+            //adds indentations
+            var iLevel=0;
+            var sTab="    ";
+            //split by line-height
+            var aInput = sInput.split("\n");
+            
+                        
+            for (i = 0; i < aInput.length; i++)
+            {
+                if (bIdentClose(aInput[i].trim()))
+                {
+                    iLevel--;
+                }              
+                
+                if (iLevel>0)
+                {
+                    aInput[i] = sTab.repeat(iLevel) + aInput[i];
+                }
+                if (bIdentOpen(aInput[i].trim()))
+                {
+                    iLevel++;
+                }
+            }
+  
+            return aInput.join("\n");
+        }
+        bIdentOpen = function (sLine)
+        {
+            var aOpenIdents = ["(", "{", "{<", "{1<", "{$<"];
+            
+            var sLastWord = sLine.match(/(?<=\s+)(\S)+$/mg);
+            
+            if (sLastWord == null)
+            {
+                sLastWord = "";
+            }
+            else
+            {
+                sLastWord = sLastWord[0];
+            }
+            
+            return (aOpenIdents.includes(sLine) || aOpenIdents.includes(sLastWord));
+            
+        }
+        bIdentClose = function (sLine)
+        {
+            
+            var aCloseIdents = [")", "}", ">}"];
+            return aCloseIdents.includes(sLine.trim().match(/(?<=^\s*)([^\s\,])+/mg)[0]);
+        }
+        bIsFunctionName = function (sLine)
+        {
+            var aFunction  = QVFunctions().map(function(x){ return x.toUpperCase();});
+            return aFunction.includes(sLine.toUpperCase());
+        }
+        QVFunctions = function ()
+        {
+            var aFunctions = ["Aggr", "FirstSortedValue", "Max", "Min", "Mode", "Only", "Sum", "Count", "MissingCount", "NullCount", "NumericCount", "TextCount", "IRR", "NPV", "XIRR", "XNPV", "Avg", "Correl", "Fractile", "Kurtosis", "LINEST_B", "LINEST_DF", "LINEST_F", "LINEST_M", "LINEST_R2", "LINEST_SEB", "LINEST_SEM", "LINEST_SEY", "LINEST_SSREG", "LINEST_SSRESID", "Median", "Skew", "Stdev", "Sterr", "STEYX", "Concat", "MaxString", "MinString", "ValueList", "ValueLoop", "If", "ARGB", "RGB", "HSL", "Alt", "Class", "Match", "MixMatch", "Pick", "WildMatch", "RowNo", "acos", "addmonths", "addyears", "age", "alt", "applycodepage", "applymap", "argb", "asin", "atan", "atan2", "attribute", "author", "autonumber", "autonumberhash128", "autonumberhash256", "avg", "bitcount", "black", "blackandschole", "blue", "brown", "capitalize", "ceil", "chi2test_chi2", "chi2test_df", "chi2test_p", "chidist", "chiinv", "chr", "class", "clientplatform", "color", "colormaphue", "colormapjet", "colormix1", "colormix2", "combin", "computername", "concat", "connectstring", "converttolocaltime", "correl", "cos", "cosh", "count", "cyan", "darkgray", "date", "date#", "day", "dayend", "daylightsaving", "dayname", "daynumberofquarter", "daynumberofyear", "daystart", "div", "DocumentName", "DocumentPath", "DocumentTitle", "Dual", "e", "Evaluate", "Even", "Exists", "exp", "fabs", "Fact", "False", "FDIST", "FieldIndex", "FieldName", "FieldNumber", "FieldValue", "FieldValueCount", "FileBaseName", "FileDir", "FileExtension", "FileList", "FileName", "FilePath", "FileSize", "FileTime", "FindOneOf", "FINV", "FirstSortedValue", "FirstValue", "FirstWorkDate", "Floor", "fmod", "Frac", "Fractile", "FV", "GetExtendedProperty", "GetFolderPath", "GetObjectField", "GetRegistryString", "GMT", "Green", "Hash128", "Hash160", "Hash256", "Hour", "HSL", "if", "InDay", "InDayToTime", "Index", "InLunarWeek", "InLunarWeekToDate", "InMonth", "InMonths", "InMonthsToDate", "InMonthToDate", "Input", "InputAvg", "InputSum", "InQuarter", "InQuarterToDate", "Interval", "Interval#", "InWeek", "InWeekToDate", "InYear", "InYearToDate", "IRR", "IsNull", "IsNum", "IsPartialReload", "IsText", "IterNo", "KeepChar", "Kurtosis", "LastValue", "LastWorkDate", "Left", "Len", "LightBlue", "LightCyan", "LightGray", "LightGreen", "LightMagenta", "LightRed", "LINEST_B", "LINEST_DF", "LINEST_F", "LINEST_M", "LINEST_R2", "LINEST_SEB", "LINEST_SEM", "LINEST_SEY", "LINEST_SSREG", "LINEST_SSRESID", "LocalTime", "log", "log10", "Lookup", "Lower", "LTrim", "LunarWeekEnd", "LunarWeekName", "LunarWeekStart", "Magenta", "MakeDate", "MakeTime", "MakeWeekDate", "MapSubString", "Match", "Max", "MaxString", "Median", "Mid", "Min", "MinString", "Minute", "MissingCount", "MixMatch", "Mod", "Mode", "Money", "Money#", "Month", "MonthEnd", "MonthName", "MonthsEnd", "MonthsName", "MonthsStart", "MonthStart", "MsgBox", "NetWorkDays", "NoOfFields", "NoOfReports", "NoOfRows", "NoOfTables", "NORMDIST", "NORMINV", "Now", "nPer", "NPV", "Null", "NullCount", "Num", "Num#", "NumAvg", "NumCount", "NumericCount", "NumMax", "NumMin", "NumSum", "Odd", "Only", "Ord", "OSUser", "Peek", "Permut", "Pi", "Pick", "Pmt", "pow", "Previous", "PurgeChar", "PV", "QlikTechBlue", "QlikTechGray", "QlikViewVersion", "QuarterEnd", "QuarterName", "QuarterStart", "QvdCreateTime", "QvdFieldName", "QvdNoOfFields", "QvdNoOfRecords", "QvdTableName", "QVUser", "Rand", "RangeAvg", "RangeCorrel", "RangeCount", "RangeFractile", "RangeIRR", "RangeKurtosis", "RangeMax", "RangeMaxString", "RangeMin", "RangeMinString", "RangeMissingCount", "RangeMode", "RangeNPV", "RangeNullCount", "RangeNumericCount", "RangeOnly", "RangeSkew", "RangeStdev", "RangeSum", "RangeTextCount", "RangeXIRR", "RangeXNPV", "Rate", "RecNo", "Red", "ReloadTime", "Repeat", "Replace", "ReportComment", "ReportId", "ReportName", "ReportNumber", "RGB", "Right", "Round", "RowNo", "RTrim", "Second", "SetDateYear", "SetDateYearMonth", "Sign", "sin", "sinh", "Skew", "sqr", "sqrt", "Stdev", "Sterr", "STEYX", "SubField", "SubStringCount", "sum", "SysColor", "TableName", "TableNumber", "tan", "tanh", "TDIST", "Text", "TextBetween", "TextCount", "Time", "Time#", "Timestamp", "Timestamp#", "TimeZone", "TINV", "Today", "Trim", "True", "TTest1_conf", "TTest1_df", "TTest1_dif", "TTest1_lower", "TTest1_sig", "TTest1_sterr", "TTest1_t", "TTest1_upper", "TTest1w_conf", "TTest1w_df", "TTest1w_dif", "TTest1w_lower", "TTest1w_sig", "TTest1w_sterr", "TTest1w_t", "TTest1w_upper", "TTest_conf", "TTest_df", "TTest_dif", "TTest_lower", "TTest_sig", "TTest_sterr", "TTest_t", "TTest_upper", "TTestw_conf", "TTestw_df", "TTestw_dif", "TTestw_lower", "TTestw_sig", "TTestw_sterr", "TTestw_t", "TTestw_upper", "Upper", "UTC", "Week", "WeekDay", "WeekEnd", "WeekName", "WeekStart", "WeekYear", "White", "WildMatch", "WildMatch5", "XIRR", "XNPV", "Year", "Year2Date", "YearEnd", "YearName", "YearStart", "YearToDate", "Yellow", "ZTest_conf", "ZTest_dif", "ZTest_lower", "ZTest_sig", "ZTest_sterr", "ZTest_upper", "ZTest_z", "ZTestw_conf", "ZTestw_dif", "ZTestw_lower", "ZTestw_sig", "ZTestw_sterr", "ZTestw_upper", "ZTestw_z", "Above", "Below", "Bottom", "Top", "NoOfRows", "Column", "Dimensionality", "Secondarydimensionality", "FieldIndex", "FieldValue", "FieldValueCount", "After", "Before", "First", "Last", "ColumnNo", "NoOfColumns", "rank", "HRank","p","Total","distinct","Nodistinct","and","or","GetSelectedCount", "GetAlternativeCount", "GetPossibleCount", "GetExcludedCount", "GetNotSelectedCount", "GetCurrentField", "GetCurrentSelections", "GetFieldSelections"];            
+            return aFunctions;
+        }
+    </script>
+    </head>
+    <body>
+        <div>
+            <p><b>Expression Input:</b></p>
+            <p>Double Bracket Dollar Expansion: <input type="checkbox" id="bDoubleBracketDollarExpansion" checked /></p>
+<textarea id='inputExpression' rows="10" cols="100">
+</textarea>
+        </div>
+        <button type="button" onclick="formatCode();">Format</button>
+        <div>
+            <p><b>Expression Output:</b></p>
+            <textarea id='outputExpression' rows="50" cols="100"></textarea>
+        </div>
+    </body>
+</html>
